@@ -186,8 +186,8 @@ defmodule Mix.Tasks.Systemd do
     ], cfg)
   end
 
-  defp start_command(service_type)
-  defp start_command(:forking), do: "daemon"
+  # defp start_command(service_type)
+  # defp start_command(:forking), do: "daemon"
   defp start_command(_), do: "start"
 
   defp exec_start_wrap(""), do: ""
