@@ -6,12 +6,12 @@ defmodule MixSystemd.Templates do
   """
 
   @doc "Generate file from template"
-  @spec write_template(Keyword.t, Path.t, String.t) :: :ok
+  @spec write_template(Keyword.t(), Path.t(), String.t()) :: :ok
   def write_template(vars, target_path, template) do
     write_template(vars, target_path, template, template)
   end
 
-  @spec write_template(Keyword.t, Path.t, String.t, Path.t) :: :ok
+  @spec write_template(Keyword.t(), Path.t(), String.t(), Path.t()) :: :ok
   def write_template(vars, target_path, template, filename) do
     target_file = Path.join(target_path, filename)
     :ok = File.mkdir_p(target_path)
@@ -21,9 +21,9 @@ defmodule MixSystemd.Templates do
   end
 
   @doc "Evaluate template file with bindings"
-  @spec template_file(String.t, Keyword.t) :: {:ok, String.t} | {:error, term}
+  @spec template_file(String.t(), Keyword.t()) :: {:ok, String.t()} | {:error, term}
   def template_file(template_file, bindings \\ []) do
-    {:ok, EEx.eval_file(template_file, bindings, [trim: true])}
+    {:ok, EEx.eval_file(template_file, bindings, trim: true)}
   rescue
     e ->
       {:error, {:template, e}}
