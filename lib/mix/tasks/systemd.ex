@@ -1,26 +1,32 @@
 defmodule Mix.Tasks.Systemd do
+  @moduledoc false
+
   # Directory under _build where generated files are stored
   @output_dir "systemd"
 
   # Directory for user template files
   @template_dir "rel/templates/systemd"
 
-  @spec parse_args(OptionParser.argv()) :: Keyword.t
+  @spec parse_args(OptionParser.argv()) :: Keyword.t()
   def parse_args(argv) do
     opts = [
       strict: [
-        version: :string,
+        version: :string
       ]
     ]
+
     {overrides, _} = OptionParser.parse!(argv, opts)
 
     user_config = Application.get_all_env(:mix_systemd)
     mix_config = Mix.Project.config()
 
     app_name = mix_config[:app]
-    ext_name = app_name
-               |> to_string
-               |> String.replace("_", "-")
+
+    ext_name =
+      app_name
+      |> to_string
+      |> String.replace("_", "-")
+
     service_name = ext_name
 
     base_dir = user_config[:base_dir] || "/srv"
@@ -29,9 +35,10 @@ defmodule Mix.Tasks.Systemd do
 
     defaults = [
       # Service start type
-      service_type: :simple, # :simple | :exec | :notify | :forking
-
-      restart_method: :systemctl, # :systemctl | :systemd_flag | :touch
+      # :simple | :exec | :notify | :forking
+      service_type: :simple,
+      # :systemctl | :systemd_flag | :touch
+      restart_method: :systemctl,
 
       # Wrapper script for ExecStart
       exec_start_wrap: "",
@@ -63,7 +70,7 @@ defmodule Mix.Tasks.Systemd do
 
       # Number of open file descriptors, LimitNOFILE
       # https://www.freedesktop.org/software/systemd/man/systemd.exec.html#LimitCPU=
-      limit_nofile: 65535,
+      limit_nofile: 65_535,
 
       # File mode creation mask, UMask
       # https://www.freedesktop.org/software/systemd/man/systemd.exec.html#UMask=
@@ -81,10 +88,11 @@ defmodule Mix.Tasks.Systemd do
       # time to sleep before restarting a service, RestartSec
       # https://www.freedesktop.org/software/systemd/man/systemd.service.html#RestartSec=
       restart_sec: 1,
-
       dirs: [
-        :runtime,         # RELEASE_TMP, RELEASE_MUTABLE_DIR, runtime-environment
-        :configuration,   # Config files, Erlang cookie
+        # RELEASE_TMP, RELEASE_MUTABLE_DIR, runtime-environment
+        :runtime,
+        # Config files, Erlang cookie
+        :configuration
         # :logs,          # External log file, not journald
         # :cache,         # App cache files which can be deleted
         # :state,         # App state persisted between runs
@@ -120,7 +128,6 @@ defmodule Mix.Tasks.Systemd do
       tmp_directory: service_name,
       tmp_directory_base: "/var/tmp",
       tmp_directory_mode: "750",
-
       mix_env: Mix.env(),
 
       # Elixir application name, an atom
@@ -132,7 +139,6 @@ defmodule Mix.Tasks.Systemd do
       # Name of service
       service_name: service_name,
 
-      # TODO: get this from release config?
       # App version
       version: mix_config[:version],
 
@@ -149,41 +155,44 @@ defmodule Mix.Tasks.Systemd do
       output_dir: Path.join(build_path, @output_dir),
 
       # Directory with templates which override defaults
-      template_dir: @template_dir,
+      template_dir: @template_dir
     ]
 
-    cfg = defaults
-          |> Keyword.merge(user_config)
-          |> Keyword.merge(overrides)
+    cfg =
+      defaults
+      |> Keyword.merge(user_config)
+      |> Keyword.merge(overrides)
 
     # Mix.shell.info "cfg: #{inspect cfg}"
 
     # Data calculated from other things
-    Keyword.merge([
-      releases_dir: Path.join(cfg[:deploy_dir], "releases"),
-      scripts_dir: Path.join(cfg[:deploy_dir], "bin"),
-      flags_dir: Path.join(cfg[:deploy_dir], "flags"),
-      current_dir: Path.join(cfg[:deploy_dir], "current"),
+    Keyword.merge(
+      [
+        releases_dir: Path.join(cfg[:deploy_dir], "releases"),
+        scripts_dir: Path.join(cfg[:deploy_dir], "bin"),
+        flags_dir: Path.join(cfg[:deploy_dir], "flags"),
+        current_dir: Path.join(cfg[:deploy_dir], "current"),
+        start_command: start_command(cfg[:service_type]),
+        exec_start_wrap: exec_start_wrap(cfg[:exec_start_wrap]),
+        unit_after_targets: unit_after_targets(cfg[:runtime_environment_service_script], cfg),
+        runtime_dir: Path.join(cfg[:runtime_directory_base], cfg[:runtime_directory]),
+        configuration_dir:
+          Path.join(cfg[:configuration_directory_base], cfg[:configuration_directory]),
+        logs_dir: Path.join(cfg[:logs_directory_base], cfg[:logs_directory]),
+        tmp_dir: Path.join(cfg[:tmp_directory_base], cfg[:tmp_directory]),
+        state_dir: Path.join(cfg[:state_directory_base], cfg[:state_directory]),
+        cache_dir: Path.join(cfg[:cache_directory_base], cfg[:cache_directory]),
+        pid_file:
+          Path.join([cfg[:runtime_directory_base], cfg[:runtime_directory], "#{app_name}.pid"]),
 
-      start_command: start_command(cfg[:service_type]),
-      exec_start_wrap: exec_start_wrap(cfg[:exec_start_wrap]),
-      unit_after_targets: unit_after_targets(cfg[:runtime_environment_service_script], cfg),
-
-      runtime_dir: Path.join(cfg[:runtime_directory_base], cfg[:runtime_directory]),
-      configuration_dir: Path.join(cfg[:configuration_directory_base], cfg[:configuration_directory]),
-      logs_dir: Path.join(cfg[:logs_directory_base], cfg[:logs_directory]),
-      tmp_dir: Path.join(cfg[:tmp_directory_base], cfg[:tmp_directory]),
-      state_dir: Path.join(cfg[:state_directory_base], cfg[:state_directory]),
-      cache_dir: Path.join(cfg[:cache_directory_base], cfg[:cache_directory]),
-
-      pid_file: Path.join([cfg[:runtime_directory_base], cfg[:runtime_directory], "#{app_name}.pid"]),
-
-      # Chroot config
-      root_directory: Path.join(cfg[:deploy_dir], "current"),
-      read_write_paths: [],
-      read_only_paths: [],
-      inaccessible_paths: [],
-    ], cfg)
+        # Chroot config
+        root_directory: Path.join(cfg[:deploy_dir], "current"),
+        read_write_paths: [],
+        read_only_paths: [],
+        inaccessible_paths: []
+      ],
+      cfg
+    )
   end
 
   # defp start_command(service_type)
@@ -191,11 +200,13 @@ defmodule Mix.Tasks.Systemd do
   defp start_command(_), do: "start"
 
   defp exec_start_wrap(""), do: ""
+
   defp exec_start_wrap(script) do
     if String.ends_with?(script, " "), do: script, else: script <> " "
   end
 
   defp unit_after_targets("", cfg), do: cfg[:unit_after_targets]
+
   defp unit_after_targets(_, cfg) do
     cfg[:unit_after_targets] ++ ["#{cfg[:service_name]}-runtime-environment.service"]
   end
@@ -216,12 +227,13 @@ defmodule Mix.Tasks.Systemd.Init do
   """
   @shortdoc "Initialize systemd template files"
   use Mix.Task
+  alias Mix.Tasks.Systemd
 
   @app :mix_systemd
 
   @spec run(OptionParser.argv()) :: no_return
   def run(args) do
-    cfg = Mix.Tasks.Systemd.parse_args(args)
+    cfg = Systemd.parse_args(args)
 
     template_dir = cfg[:template_dir]
     app_dir = Application.app_dir(@app, ["priv", "templates"])
@@ -229,7 +241,6 @@ defmodule Mix.Tasks.Systemd.Init do
     :ok = File.mkdir_p(template_dir)
     {:ok, _files} = File.cp_r(app_dir, template_dir)
   end
-
 end
 
 defmodule Mix.Tasks.Systemd.Generate do
@@ -247,7 +258,7 @@ defmodule Mix.Tasks.Systemd.Generate do
   """
   @shortdoc "Create systemd unit file"
   use Mix.Task
-
+  alias Mix.Tasks.Systemd
   alias MixSystemd.Templates
 
   @spec run(OptionParser.argv()) :: no_return
@@ -257,7 +268,7 @@ defmodule Mix.Tasks.Systemd.Generate do
     # verbosity = Keyword.get(opts, :verbosity)
     # Shell.configure(verbosity)
 
-    cfg = Mix.Tasks.Systemd.parse_args(args)
+    cfg = Systemd.parse_args(args)
 
     dest_dir = Path.join([cfg[:output_dir], "/lib/systemd/system"])
     service_name = cfg[:service_name]
@@ -270,14 +281,18 @@ defmodule Mix.Tasks.Systemd.Generate do
     end
 
     if cfg[:runtime_environment_service_script] != "" do
-      write_template(cfg, dest_dir, "runtime-environment.service", "#{service_name}-runtime-environment.service")
+      write_template(
+        cfg,
+        dest_dir,
+        "runtime-environment.service",
+        "#{service_name}-runtime-environment.service"
+      )
     end
-
   end
 
   defp write_template(cfg, dest_dir, template, file) do
     target_file = Path.join(dest_dir, file)
-    Mix.shell.info "Generating #{target_file} from template #{template}"
+    Mix.shell().info("Generating #{target_file} from template #{template}")
     Templates.write_template(cfg, dest_dir, template, file)
   end
 end
