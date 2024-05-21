@@ -22,10 +22,7 @@ defmodule Mix.Tasks.Systemd do
 
     app_name = mix_config[:app]
 
-    ext_name =
-      app_name
-      |> to_string
-      |> String.replace("_", "-")
+    ext_name = app_name
 
     service_name = ext_name
 
