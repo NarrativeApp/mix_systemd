@@ -27,7 +27,7 @@ Here is [a complete example app which uses mix_deploy](https://github.com/cogini
 Add `mix_systemd` to `deps` in `mix.exs`:
 
 ```elixir
-{:mix_systemd, "~> 0.7.0"},
+{:mix_systemd, "~> 0.8.0"},
 ```
 
 ## Configuration
